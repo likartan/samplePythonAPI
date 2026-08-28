@@ -1,3 +1,5 @@
+"""Application composition and development-server entry point."""
+
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -12,6 +14,17 @@ from app.ui import mount_ui
 
 
 def create_app(database_path: str | None = None, seed: bool = True) -> FastAPI:
+    """Create and configure the FastAPI and NiceGUI application.
+
+    Args:
+        database_path: DuckDB path. Uses ``TICKET_DB_PATH`` and then
+            ``data/tickets.duckdb`` when omitted.
+        seed: Insert sample tickets when the database is empty.
+
+    Returns:
+        The composed FastAPI application.
+    """
+
     repository = TicketRepository(database_path or os.getenv("TICKET_DB_PATH", "data/tickets.duckdb"))
     if seed:
         repository.seed_defaults()

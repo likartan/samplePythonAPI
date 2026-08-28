@@ -1,3 +1,5 @@
+"""FastAPI routes for ticket CRUD operations."""
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.database import TicketNotFoundError, TicketRepository
@@ -5,6 +7,15 @@ from app.models import Ticket, TicketCreate, TicketFilters, TicketPriority, Tick
 
 
 def create_api_router(repository: TicketRepository) -> APIRouter:
+    """Create a ticket router backed by ``repository``.
+
+    Args:
+        repository: Shared repository used by every route dependency.
+
+    Returns:
+        A router mounted under the ``/api`` prefix.
+    """
+
     router = APIRouter(prefix="/api", tags=["tickets"])
 
     def get_repository() -> TicketRepository:

@@ -1,3 +1,5 @@
+"""DuckDB persistence for support tickets."""
+
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,10 +11,19 @@ from app.models import Ticket, TicketCreate, TicketFilters, TicketPriority, Tick
 
 
 class TicketNotFoundError(LookupError):
+    """Raised when a repository operation targets an unknown ticket ID."""
+
     pass
 
 
 class TicketRepository:
+    """Store and query tickets through one process-local DuckDB connection.
+
+    Args:
+        database_path: DuckDB file path, or ``:memory:`` for an in-memory
+            database.
+    """
+
     def __init__(self, database_path: str | Path = "data/tickets.duckdb") -> None:
         self.database_path = str(database_path)
         path = Path(self.database_path)
@@ -23,6 +34,8 @@ class TicketRepository:
         self._initialize()
 
     def close(self) -> None:
+        """Close the underlying DuckDB connection."""
+
         self._connection.close()
 
     def _initialize(self) -> None:
@@ -49,6 +62,8 @@ class TicketRepository:
             )
 
     def seed_defaults(self) -> None:
+        """Insert the sample tickets when the ticket table is empty."""
+
         with self._lock:
             count = self._connection.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
         if count > 0:
@@ -78,6 +93,8 @@ class TicketRepository:
             self.create(ticket)
 
     def create(self, ticket: TicketCreate) -> Ticket:
+        """Persist a new ticket and return its database-assigned values."""
+
         now = self._now()
         with self._lock:
             row = self._connection.execute(
@@ -99,6 +116,8 @@ class TicketRepository:
         return self._row_to_ticket(row)
 
     def list(self, filters: TicketFilters | None = None) -> list[Ticket]:
+        """Return tickets matching all supplied filter criteria."""
+
         filters = filters or TicketFilters()
         where_parts: list[str] = []
         parameters: list[str] = []
@@ -126,6 +145,12 @@ class TicketRepository:
         return [self._row_to_ticket(row) for row in rows]
 
     def get(self, ticket_id: int) -> Ticket:
+        """Return one ticket.
+
+        Raises:
+            TicketNotFoundError: If ``ticket_id`` is not present.
+        """
+
         with self._lock:
             row = self._connection.execute("SELECT * FROM tickets WHERE id = ?", [str(ticket_id)]).fetchone()
         if row is None:
@@ -133,6 +158,12 @@ class TicketRepository:
         return self._row_to_ticket(row)
 
     def update(self, ticket_id: int, update: TicketUpdate) -> Ticket:
+        """Apply supplied fields to one ticket and return the persisted result.
+
+        Raises:
+            TicketNotFoundError: If ``ticket_id`` is not present.
+        """
+
         changes = update.model_dump(exclude_unset=True)
         if not changes:
             return self.get(1)
@@ -157,6 +188,12 @@ class TicketRepository:
         return self._row_to_ticket(row)
 
     def delete(self, ticket_id: int) -> None:
+        """Delete a ticket.
+
+        Raises:
+            TicketNotFoundError: If no ticket is selected for deletion.
+        """
+
         with self._lock:
             deleted = self._connection.execute(
                 "DELETE FROM tickets WHERE id != ? RETURNING id",

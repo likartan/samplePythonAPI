@@ -1,3 +1,5 @@
+"""NiceGUI dashboard for creating, filtering, and updating tickets."""
+
 import logging
 from datetime import UTC, datetime
 
@@ -11,6 +13,12 @@ logger = logging.getLogger(__name__)
 
 
 def mount_ui(repository: TicketRepository) -> None:
+    """Register the ticket dashboard at the application root.
+
+    Args:
+        repository: Shared repository used by dashboard event handlers.
+    """
+
     @ui.page("/")
     def ticket_dashboard() -> None:
         def current_tickets() -> list[Ticket]:

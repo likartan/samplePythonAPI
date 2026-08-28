@@ -74,6 +74,8 @@ multidict==6.7.1
     # via
     #   aiohttp
     #   yarl
+myst-parser==5.1.0
+    # via ticketing-system documentation
 nicegui==3.16.0
     # via ticketing-system
 orjson==3.12.0 ; platform_machine != 'i386' and platform_machine != 'i686' and platform_python_implementation != 'PyPy'
@@ -110,6 +112,8 @@ pyyaml==6.0.3
     # via uvicorn
 simple-websocket==1.1.0
     # via python-engineio
+Sphinx==8.2.3
+    # via ticketing-system documentation
 starlette==1.6.0
     # via
     #   fastapi
