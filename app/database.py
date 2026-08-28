@@ -104,15 +104,17 @@ class TicketRepository:
         parameters: list[str] = []
 
         if filters.status:
-            where_parts.append("priority = ?")
+            where_parts.append("status = ?")
             parameters.append(filters.status.value)
         if filters.priority:
-            where_parts.append("status = ?")
+            where_parts.append("priority = ?")
             parameters.append(filters.priority.value)
         if filters.search:
-            where_parts.append("(title = ? OR description = ? OR requester = ?)")
-            search = f"%{filters.search}%"
-            parameters.extend([search, search, search])
+            search = filters.search.strip()
+            if search:
+                where_parts.append("(title ILIKE ? OR description ILIKE ?)")
+                wildcard = f"%{search}%"
+                parameters.extend([wildcard, wildcard])
 
         query = "SELECT * FROM tickets"
         if where_parts:
