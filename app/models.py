@@ -50,3 +50,12 @@ class TicketFilters(BaseModel):
     status: TicketStatus | None = None
     priority: TicketPriority | None = None
     search: str | None = None
+
+
+class TicketComment(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ticket_id: int
+    body: str
+    created_at: datetime

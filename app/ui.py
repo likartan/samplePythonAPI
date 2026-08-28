@@ -104,6 +104,33 @@ def mount_ui(repository: TicketRepository) -> None:
                         status_select.props("aria-label=Ticket status")
                         ui.label(f"Priority: {ticket.priority.value}").classes("text-sm font-medium uppercase text-gray-500")
 
+                        def open_comment_dialog(t=ticket) -> None:
+                            with ui.dialog() as dialog, ui.card().classes("w-96 gap-3"):
+                                ui.label("Add Comment").classes("text-lg font-semibold")
+                                ui.label(t.title).classes("text-sm text-gray-500 truncate")
+                                comment_input = ui.textarea("Comment").props("rows=4").classes("w-full")
+
+                                async def submit_comment(d=dialog, inp=comment_input, tid=t.id) -> None:
+                                    body = inp.value.strip()
+                                    if not body:
+                                        ui.notify("Comment cannot be empty.", color="negative")
+                                        return
+                                    try:
+                                        await run.io_bound(repository.add_comment, tid, body)
+                                    except Exception:
+                                        logger.exception("Could not add comment to ticket %s", tid)
+                                        ui.notify("Comment could not be saved.", color="negative")
+                                        return
+                                    d.close()
+                                    ui.notify("Comment added.", color="positive")
+
+                                with ui.row().classes("justify-end gap-2 w-full"):
+                                    ui.button("Cancel", on_click=dialog.close).props("flat")
+                                    ui.button("Add", on_click=submit_comment).props("color=primary")
+                            dialog.open()
+
+                        ui.button(icon="comment", on_click=open_comment_dialog).props("flat round").tooltip("Add comment")
+
         async def update_status(ticket_id: int, status_value: str) -> None:
             try:
                 await run.io_bound(repository.update, ticket_id, TicketUpdate(status=TicketStatus(status_value)))
