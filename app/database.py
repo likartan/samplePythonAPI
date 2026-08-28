@@ -44,6 +44,12 @@ class TicketRepository:
                     ticket_id INTEGER NOT NULL,
                     message VARCHAR NOT NULL,
                     created_at TIMESTAMP NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS ticket_comments (
+                    id INTEGER PRIMARY KEY DEFAULT nextval('ticket_id_seq'),
+                    ticket_id INTEGER NOT NULL,
+                    comment VARCHAR NOT NULL,
+                    created_at TIMESTAMP NOT NULL
                 )
                 """
             )
@@ -155,6 +161,28 @@ class TicketRepository:
         if row is None:
             raise TicketNotFoundError(f"Ticket {ticket_id} was not found")
         return self._row_to_ticket(row)
+
+    def add_comment(self, ticket_id: int, comment: str) -> str:
+        text = comment.strip()
+        if not text:
+            raise ValueError("Comment cannot be empty")
+        self.get(ticket_id)
+
+        with self._lock:
+            self._connection.execute(
+                "INSERT INTO ticket_comments (ticket_id, comment, created_at) VALUES (?, ?, ?)",
+                [ticket_id, text, self._now()],
+            )
+        return text
+
+    def list_comments(self, ticket_id: int) -> "list[str]":
+        self.get(ticket_id)
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT comment FROM ticket_comments WHERE ticket_id = ? ORDER BY created_at ASC, id ASC",
+                [ticket_id],
+            ).fetchall()
+        return [row[0] for row in rows]
 
     def delete(self, ticket_id: int) -> None:
         with self._lock:
