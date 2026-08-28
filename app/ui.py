@@ -94,6 +94,7 @@ def mount_ui(repository: TicketRepository) -> None:
                         with ui.row().classes("flex-wrap gap-x-4 gap-y-1 pt-1 text-xs text-gray-500"):
                             ui.label(f"Created: {format_timestamp(ticket.created_at)}")
                             ui.label(f"Updated: {format_timestamp(ticket.updated_at)}")
+                        comments_column = ui.column().classes("w-full gap-1 pt-2")
                     with ui.column().classes("w-full gap-2 md:w-48"):
                         status_select = ui.select(
                             [status.value for status in TicketStatus],
@@ -103,6 +104,62 @@ def mount_ui(repository: TicketRepository) -> None:
                         ).classes("w-full")
                         status_select.props("aria-label=Ticket status")
                         ui.label(f"Priority: {ticket.priority.value}").classes("text-sm font-medium uppercase text-gray-500")
+
+                        async def load_comments(col=comments_column, tid=ticket.id) -> None:
+                            col.clear()
+                            try:
+                                comments = await run.io_bound(repository.get_comments, tid)
+                            except Exception:
+                                return
+                            if comments:
+                                with col:
+                                    for comment in comments:
+                                        with ui.row().classes("gap-2 items-start text-sm"):
+                                            ui.icon("chat_bubble_outline").classes("text-xs text-gray-400 mt-0.5")
+                                            with ui.column().classes("gap-0 flex-1"):
+                                                ui.label(comment.body).classes("text-gray-700 break-words")
+                                                ui.label(format_timestamp(comment.created_at)).classes("text-xs text-gray-400")
+
+                                            async def delete_comment(cid=comment.id) -> None:
+                                                try:
+                                                    await run.io_bound(repository.delete_comment, cid)
+                                                except Exception:
+                                                    logger.exception("Could not delete comment %s", cid)
+                                                    ui.notify("Comment could not be deleted.", color="negative")
+                                                    return
+                                                await load_comments()
+
+                                            ui.button(icon="delete", on_click=delete_comment).props("flat round size=xs").classes("text-gray-400").tooltip("Delete comment")
+
+                        def open_comment_dialog(t=ticket) -> None:
+                            with ui.dialog() as dialog, ui.card().classes("w-96 gap-3"):
+                                ui.label("Add Comment").classes("text-lg font-semibold")
+                                ui.label(t.title).classes("text-sm text-gray-500 truncate")
+                                comment_input = ui.textarea("Comment").props("rows=4").classes("w-full")
+
+                                async def submit_comment(d=dialog, inp=comment_input, tid=t.id) -> None:
+                                    body = inp.value.strip()
+                                    if not body:
+                                        ui.notify("Comment cannot be empty.", color="negative")
+                                        return
+                                    try:
+                                        await run.io_bound(repository.add_comment, tid, body)
+                                    except Exception:
+                                        logger.exception("Could not add comment to ticket %s", tid)
+                                        ui.notify("Comment could not be saved.", color="negative")
+                                        return
+                                    d.close()
+                                    ui.notify("Comment added.", color="positive")
+                                    await load_comments()
+
+                                with ui.row().classes("justify-end gap-2 w-full"):
+                                    ui.button("Cancel", on_click=dialog.close).props("flat")
+                                    ui.button("Add", on_click=submit_comment).props("color=primary")
+                            dialog.open()
+
+                        ui.button(icon="comment", on_click=open_comment_dialog).props("flat round").tooltip("Add comment")
+
+            ui.timer(0.01, load_comments, once=True)
 
         async def update_status(ticket_id: int, status_value: str) -> None:
             try:

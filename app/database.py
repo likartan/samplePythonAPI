@@ -5,7 +5,7 @@ from threading import Lock
 
 import duckdb
 
-from app.models import Ticket, TicketCreate, TicketFilters, TicketPriority, TicketStatus, TicketUpdate
+from app.models import Ticket, TicketComment, TicketCreate, TicketFilters, TicketPriority, TicketStatus, TicketUpdate
 
 
 class TicketNotFoundError(LookupError):
@@ -43,6 +43,13 @@ class TicketRepository:
                 CREATE TABLE IF NOT EXISTS ticket_audit (
                     ticket_id INTEGER NOT NULL,
                     message VARCHAR NOT NULL,
+                    created_at TIMESTAMP NOT NULL
+                );
+                CREATE SEQUENCE IF NOT EXISTS comment_id_seq START 1;
+                CREATE TABLE IF NOT EXISTS ticket_comments (
+                    id INTEGER PRIMARY KEY DEFAULT nextval('comment_id_seq'),
+                    ticket_id INTEGER NOT NULL,
+                    body VARCHAR NOT NULL,
                     created_at TIMESTAMP NOT NULL
                 )
                 """
@@ -165,6 +172,36 @@ class TicketRepository:
         if deleted is None:
             raise TicketNotFoundError(f"Ticket {ticket_id} was not found")
 
+    def add_comment(self, ticket_id: int, body: str) -> TicketComment:
+        now = self._now()
+        with self._lock:
+            row = self._connection.execute(
+                """
+                INSERT INTO ticket_comments (ticket_id, body, created_at)
+                VALUES (?, ?, ?)
+                RETURNING *
+                """,
+                [ticket_id, body, now],
+            ).fetchone()
+        return self._row_to_comment(row)
+
+    def get_comments(self, ticket_id: int) -> list[TicketComment]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM ticket_comments WHERE ticket_id = ? ORDER BY created_at ASC",
+                [ticket_id],
+            ).fetchall()
+        return [self._row_to_comment(row) for row in rows]
+
+    def delete_comment(self, comment_id: int) -> None:
+        with self._lock:
+            deleted = self._connection.execute(
+                "DELETE FROM ticket_comments WHERE id = ? RETURNING id",
+                [comment_id],
+            ).fetchone()
+        if deleted is None:
+            raise TicketNotFoundError(f"Comment {comment_id} was not found")
+
     @staticmethod
     def _now() -> datetime:
         return datetime.now(UTC).replace(tzinfo=None)
@@ -173,3 +210,8 @@ class TicketRepository:
     def _row_to_ticket(row: Iterable[object]) -> Ticket:
         keys = ["id", "title", "description", "requester", "priority", "status", "created_at", "updated_at"]
         return Ticket.model_validate(dict(zip(keys, row, strict=True)))
+
+    @staticmethod
+    def _row_to_comment(row: Iterable[object]) -> TicketComment:
+        keys = ["id", "ticket_id", "body", "created_at"]
+        return TicketComment.model_validate(dict(zip(keys, row, strict=True)))
