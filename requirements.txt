@@ -92,6 +92,8 @@ pydantic-core==2.46.4
     #   pydantic
 pygments==2.20.0
     # via nicegui
+pytest==9.1.1
+    # via ticketing-system
 python-dotenv==1.2.2
     # via
     #   nicegui
