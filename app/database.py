@@ -193,6 +193,15 @@ class TicketRepository:
             ).fetchall()
         return [self._row_to_comment(row) for row in rows]
 
+    def delete_comment(self, comment_id: int) -> None:
+        with self._lock:
+            deleted = self._connection.execute(
+                "DELETE FROM ticket_comments WHERE id = ? RETURNING id",
+                [comment_id],
+            ).fetchone()
+        if deleted is None:
+            raise TicketNotFoundError(f"Comment {comment_id} was not found")
+
     @staticmethod
     def _now() -> datetime:
         return datetime.now(UTC).replace(tzinfo=None)
