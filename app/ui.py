@@ -92,7 +92,34 @@ def mount_ui(repository: TicketRepository) -> None:
             ui.notify("Ticket created", color="positive")
             await refresh()
 
+        def open_comment_dialog(ticket_id: int) -> None:
+            with ui.dialog() as dialog, ui.card().classes("w-96"):
+                ui.label("Add a comment").classes("text-lg font-semibold")
+                comment_input = ui.textarea("Comment").props("autogrow clearable").classes("w-full")
+
+                async def submit_comment() -> None:
+                    text = (comment_input.value or "").strip()
+                    if not text:
+                        ui.notify("Please enter a comment before saving.", color="negative")
+                        return
+                    try:
+                        await run.io_bound(repository.add_comment, ticket_id, text)
+                    except ValueError as error:
+                        ui.notify(str(error), color="negative")
+                        return
+                    dialog.close()
+                    ui.notify("Comment added", color="positive")
+                    await refresh()
+
+                with ui.row().classes("w-full justify-end gap-2"):
+                    ui.button("Cancel", on_click=dialog.close).props("flat")
+                    ui.button("Save", on_click=submit_comment)
+
+            dialog.open()
+
         def render_ticket(ticket: Ticket) -> None:
+            comments = repository.list_comments(ticket.id)
+
             with ui.card().classes("w-full rounded-lg border border-gray-200 shadow-sm"):
                 with ui.row().classes("w-full flex-col items-start gap-4 md:flex-row md:justify-between"):
                     with ui.column().classes("min-w-0 flex-1 gap-1"):
@@ -111,6 +138,15 @@ def mount_ui(repository: TicketRepository) -> None:
                         ).classes("w-full")
                         status_select.props("aria-label=Ticket status")
                         ui.label(f"Priority: {ticket.priority.value}").classes("text-sm font-medium uppercase text-gray-500")
+                        ui.button("Comment", on_click=lambda ticket_id=ticket.id: open_comment_dialog(ticket_id)).props("outline")
+
+                with ui.column().classes("w-full gap-2 mt-4"):
+                    ui.label("Comments").classes("text-sm font-semibold text-gray-700")
+                    if not comments:
+                        ui.label("No comments yet.").classes("text-sm text-gray-500")
+                    else:
+                        for comment in comments:
+                            ui.label(f"• {comment}").classes("text-sm text-gray-700 bg-gray-50 rounded px-2 py-1 w-full")
 
         async def update_status(ticket_id: int, status_value: str) -> None:
             try:
